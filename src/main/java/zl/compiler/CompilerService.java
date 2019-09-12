@@ -8,10 +8,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.URI;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -24,21 +21,22 @@ public class CompilerService {
     /**
      * classFullName的simple类名 必须和 code 中的类名一致。
      *
-     * @param classFullName
-     * @param code
-     * @return
+     * @param javaList key classFullName; value code
      */
-    public Map<String, byte[]> compiler(String classFullName, String code) throws Exception {
+    public Map<String, byte[]> compiler(Map<String, String> javaList) throws Exception {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         // 通过Diagnostic实例获取编译过程中出错的行号、位置以及错误原因等信息。
         DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();
 
         MyJavaFileManager javaFileManager = new MyJavaFileManager(compiler.getStandardFileManager(collector, null, null));
 
-        SimpleJavaFileObject fileObject = new CharSequenceJavaFileObject(classFullName, code);
+        List<SimpleJavaFileObject> objects = new ArrayList<>();
+        javaList.forEach(
+                (k, v) -> objects.add(new CharSequenceJavaFileObject(k, v))
+        );
 
 
-        JavaCompiler.CompilationTask task = compiler.getTask(null, javaFileManager, collector, null, null, Collections.singletonList(fileObject));
+        JavaCompiler.CompilationTask task = compiler.getTask(null, javaFileManager, collector, null, null, objects);
         Boolean call = task.call();
         if (call) {
             Map<String, byte[]> map = new HashMap<>();
@@ -62,10 +60,10 @@ public class CompilerService {
 
     public static void main(String[] args) throws Exception {
 
-        CompilerService service = new CompilerService();
-        Map<String, byte[]> map = service.compiler("zl.compiler.Tesssfs", "package zl.compiler;\n" +
+        Map<String, String> javaList = new HashMap<>();
+        javaList.put("zl.compiler.Test", "package zl.compiler;\n" +
                 "\n" +
-                "public class Tessss {\n" +
+                "public class Test {\n" +
                 "\n" +
                 "  public String work(){\n" +
                 "      System.out.println(\"ddd\");\n" +
@@ -73,9 +71,24 @@ public class CompilerService {
                 "  }\n" +
                 "}\n");
 
+        javaList.put("zl.compiler.Test2", "package zl.compiler;\n" +
+                "\n" +
+                "public class Test2 {\n" +
+                "\n" +
+                "  public String work(){\n" +
+                "      new Test().work();\n" +
+                "      System.out.println(\"fff\");\n" +
+                "\n" +
+                "      return \"kkk\";\n" +
+                "  }\n" +
+                "}\n");
+
+        CompilerService service = new CompilerService();
+        Map<String, byte[]> map = service.compiler(javaList);
+
 
         ClassLoader loader = new CompileClassLoader(map);
-        Class<?> aClass = loader.loadClass("zl.compiler.Tessss");
+        Class<?> aClass = loader.loadClass("zl.compiler.Test2");
 
         Method work = aClass.getMethod("work");
         work.invoke(aClass.newInstance());
