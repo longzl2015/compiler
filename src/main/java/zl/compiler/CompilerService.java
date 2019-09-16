@@ -2,14 +2,13 @@ package zl.compiler;
 
 
 import org.springframework.stereotype.Service;
+import zl.compiler.hot.CharSequenceJavaFileObject;
+import zl.compiler.hot.HotClassLoader;
+import zl.compiler.hot.MemJavaFileManager;
 
 import javax.tools.*;
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStream;
 import java.lang.reflect.Method;
-import java.net.URI;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author zhoulong
@@ -17,45 +16,47 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class CompilerService {
 
-
     /**
      * classFullName的simple类名 必须和 code 中的类名一致。
      *
-     * @param javaList key classFullName; value code
+     * @param javaSources key classFullName; value code
      */
-    public Map<String, byte[]> compiler(Map<String, String> javaList) throws Exception {
+    public Map<String, byte[]> compiler(Map<String, String> javaSources) throws Exception {
+
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        // 通过Diagnostic实例获取编译过程中出错的行号、位置以及错误原因等信息。
         DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();
+        StandardJavaFileManager standardFileManager = compiler.getStandardFileManager(collector, null, null);
+        MemJavaFileManager memFileManager = new MemJavaFileManager(standardFileManager);
 
-        MyJavaFileManager javaFileManager = new MyJavaFileManager(compiler.getStandardFileManager(collector, null, null));
-
-        List<SimpleJavaFileObject> objects = new ArrayList<>();
-        javaList.forEach(
-                (k, v) -> objects.add(new CharSequenceJavaFileObject(k, v))
+        List<SimpleJavaFileObject> javaFileObjects = new ArrayList<>();
+        javaSources.forEach(
+                (k, v) -> javaFileObjects.add(new CharSequenceJavaFileObject(k, v))
         );
 
-
-        JavaCompiler.CompilationTask task = compiler.getTask(null, javaFileManager, collector, null, null, objects);
+        JavaCompiler.CompilationTask task = compiler.getTask(null, memFileManager, collector, null, null, javaFileObjects);
         Boolean call = task.call();
         if (call) {
-            Map<String, byte[]> map = new HashMap<>();
-            Map<String, CharSequenceJavaFileObject> classMap = javaFileManager.classMap;
-            classMap.forEach(
-                    (k, v) -> map.put(k, v.getCompiledBytes())
-            );
-            return map;
+            // 调用成功，返回 class
+            return memFileManager.getClassMap();
         }
 
+        String s = simplifyDiagnostic(collector);
+        //System.out.println(s);
+        throw new Exception(s);
+
+    }
+
+
+    private String simplifyDiagnostic(DiagnosticCollector<JavaFileObject> collector) {
+        StringBuilder builder = new StringBuilder();
         for (Diagnostic<? extends JavaFileObject> diagnostic : collector.getDiagnostics()) {
-            System.out.println(diagnostic.getCode());
-            System.out.println(diagnostic.getLineNumber());
-            System.out.println(diagnostic.getColumnNumber());
-            System.out.println(diagnostic.getMessage(Locale.getDefault()));
+            builder.append("编译出错原因: ")
+                    .append(diagnostic.getMessage(Locale.getDefault())).append("\n")
+                    .append("  行数 ").append(diagnostic.getLineNumber()).append("\n")
+                    .append("  列数 ").append(diagnostic.getColumnNumber()).append("\n")
+                    .append("\n");
         }
-
-        throw new Exception("");
-
+        return builder.toString();
     }
 
     public static void main(String[] args) throws Exception {
@@ -66,28 +67,40 @@ public class CompilerService {
                 "public class Test {\n" +
                 "\n" +
                 "  public String work(){\n" +
-                "      System.out.println(\"ddd\");\n" +
+                "DagExecution dagExecution = new DagExecution();" +
+                "      System.out.println(new Test2().toString());\n" +
+                "      System.out.println(\"Test\");\n" +
                 "      return \"kkk\";\n" +
                 "  }\n" +
                 "}\n");
-
+        javaList.put("zl.compiler.Test1", "package zl.compiler;\n" +
+                "\n" +
+                "public class Test1 {\n" +
+                "\n" +
+                "  public String work(){\n" +
+                "      new Test().work();\n" +
+                "      System.out.println(\"Test1\");\n" +
+                "      return \"kkk\";\n" +
+                "  }\n" +
+                "}\n");
         javaList.put("zl.compiler.Test2", "package zl.compiler;\n" +
                 "\n" +
                 "public class Test2 {\n" +
                 "\n" +
                 "  public String work(){\n" +
-                "      new Test().work();\n" +
-                "      System.out.println(\"fff\");\n" +
+                "      new Test1().work();\n" +
+                "      System.out.println(\"Test2\");\n" +
                 "\n" +
                 "      return \"kkk\";\n" +
                 "  }\n" +
                 "}\n");
 
+
         CompilerService service = new CompilerService();
         Map<String, byte[]> map = service.compiler(javaList);
 
 
-        ClassLoader loader = new CompileClassLoader(map);
+        ClassLoader loader = new HotClassLoader(map);
         Class<?> aClass = loader.loadClass("zl.compiler.Test2");
 
         Method work = aClass.getMethod("work");
@@ -97,108 +110,4 @@ public class CompilerService {
 
 }
 
-/**
- * 自定义了一个 ClassLoader，用于加载 动态编译生成的 class
- * <p>
- * classMap 字段: 保存 class 字节码
- */
-class CompileClassLoader extends ClassLoader {
 
-    private Map<String, byte[]> classMap;
-
-    CompileClassLoader(Map<String, byte[]> classMap) {
-        this.classMap = classMap;
-    }
-
-    /**
-     * 在调用 loadClass() 时，
-     * 如果父类无法加载该类，则会使用 findClass() 加载类。
-     */
-    @Override
-    protected Class<?> findClass(String name) throws ClassNotFoundException {
-        byte[] bytes = classMap.get(name);
-        if (bytes != null) {
-            return defineClass(name, bytes, 0, bytes.length);
-        }
-        throw new ClassNotFoundException("源文件中找不到类:" + name);
-    }
-}
-
-
-/**
- * 用于管理 编译生成的 Class 类:
- * <p>
- * 自定义了一个 classMap 字段。该字段用于存储 编译生成的 Class 类
- */
-class MyJavaFileManager extends ForwardingJavaFileManager<JavaFileManager> {
-    Map<String, CharSequenceJavaFileObject> classMap;
-
-    MyJavaFileManager(JavaFileManager fileManager) {
-        super(fileManager);
-        classMap = new ConcurrentHashMap<>();
-    }
-
-    /**
-     *
-     */
-    @Override
-    public JavaFileObject getJavaFileForOutput(Location location, String qualifiedClassName, JavaFileObject.Kind kind, FileObject sibling) {
-        CharSequenceJavaFileObject javaFileObject = new CharSequenceJavaFileObject(qualifiedClassName, kind);
-        classMap.put(qualifiedClassName, javaFileObject);
-        return javaFileObject;
-    }
-}
-
-/**
- * 该类 有一个 kind 字段，分为以下四种
- * - '.class'
- * - '.java'
- * - '.html'
- * - other
- * <p>
- * 当为 '.class' 类型时，会将 class 内容存入 outPutStream 字段中
- * 档位 '.java'  类型时，会将 java 源代码存入 content 字段中
- */
-class CharSequenceJavaFileObject extends SimpleJavaFileObject {
-
-    /**
-     * 用于保存源文件内容
-     */
-    private CharSequence content;
-    /**
-     * 用于保存 编译后的 class 文件
-     */
-    private ByteArrayOutputStream outPutStream;
-
-    CharSequenceJavaFileObject(String className, Kind kind) {
-        super(URI.create("String:///" + className.replace('.', '/') + kind.extension), kind);
-        content = null;
-    }
-
-    CharSequenceJavaFileObject(String className, String source) {
-        super(URI.create("string:///" + className.replace('.', '/') + javax.tools.JavaFileObject.Kind.SOURCE.extension),
-                javax.tools.JavaFileObject.Kind.SOURCE);
-        this.content = source;
-    }
-
-    /**
-     * 在编译过程中，JavaCompiler 会先调用 getCharContent() 获取 java 源文件内容。
-     */
-    @Override
-    public CharSequence getCharContent(boolean ignoreEncodingErrors) {
-        return this.content;
-    }
-
-    /**
-     * JavaCompiler.generate 后，会调用该方法. 因此必须实现该方法。
-     */
-    @Override
-    public OutputStream openOutputStream() {
-        outPutStream = new ByteArrayOutputStream();
-        return outPutStream;
-    }
-
-    byte[] getCompiledBytes() {
-        return outPutStream.toByteArray();
-    }
-}
