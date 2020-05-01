@@ -13,8 +13,9 @@ public class TestA {
 
     private String a;
     public String getA() {
-        return "1223";
+        return new Random().nextDouble()+"";
     }
+
 
     public String getAsdfe() {
         String result = (String) MVEL.executeExpression(asdfe_mvel, this);
