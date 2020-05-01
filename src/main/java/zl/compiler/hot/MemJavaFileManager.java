@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 自定义了一个 classMap 字段。该字段用于存储 编译生成的 Class 类
  */
 public class MemJavaFileManager extends ForwardingJavaFileManager<JavaFileManager> {
-    private Map<String, CharSequenceJavaFileObject> javaFileObjectMap;
+    private final Map<String, CharSequenceJavaFileObject> javaFileObjectMap;
 
     public MemJavaFileManager(JavaFileManager fileManager) {
         super(fileManager);
