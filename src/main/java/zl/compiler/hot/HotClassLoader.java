@@ -11,7 +11,7 @@ public class HotClassLoader extends ClassLoader {
 
     private Map<String, byte[]> classMap;
 
-   public HotClassLoader(Map<String, byte[]> classMap) {
+    public HotClassLoader(Map<String, byte[]> classMap) {
         this.classMap = classMap;
     }
 

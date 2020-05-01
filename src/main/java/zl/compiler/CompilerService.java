@@ -67,7 +67,6 @@ public class CompilerService {
                 "public class Test {\n" +
                 "\n" +
                 "  public String work(){\n" +
-                "DagExecution dagExecution = new DagExecution();" +
                 "      System.out.println(new Test2().toString());\n" +
                 "      System.out.println(\"Test\");\n" +
                 "      return \"kkk\";\n" +
@@ -99,12 +98,19 @@ public class CompilerService {
         CompilerService service = new CompilerService();
         Map<String, byte[]> map = service.compiler(javaList);
 
+        ClassLoader loader1 = new HotClassLoader(map);
+        Class<?> aClass1 = loader1.loadClass("zl.compiler.Test2");
 
-        ClassLoader loader = new HotClassLoader(map);
-        Class<?> aClass = loader.loadClass("zl.compiler.Test2");
 
-        Method work = aClass.getMethod("work");
-        work.invoke(aClass.newInstance());
+        Method work1 = aClass1.getMethod("work");
+        work1.invoke(aClass1.newInstance());
+
+        ClassLoader loader2 = new HotClassLoader(new HashMap<>());
+
+        Class<?> aClass = loader2.loadClass("zl.compiler.Test2");
+
+        System.out.println(aClass);
+
 
     }
 
