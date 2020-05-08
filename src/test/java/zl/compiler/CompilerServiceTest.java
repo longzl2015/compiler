@@ -39,13 +39,14 @@ public class CompilerServiceTest {
         work1.invoke(newInstance);
         System.out.println("调用时间ms:" + (System.currentTimeMillis() - start));
 
-
+        //ClassLoader old = Thread.currentThread().getContextClassLoader();
+        //Thread.currentThread().setContextClassLoader(loader1);
         int count = 0;
-        while (count++ < 1000) {
-            start = System.currentTimeMillis();
+        start = System.currentTimeMillis();
+        while (count++ < 100000) {
             work1.invoke(newInstance);
-            System.out.println("调用时间ms:" + (System.currentTimeMillis() - start));
         }
-
+        System.out.println("调用时间ms:" + (System.currentTimeMillis() - start));
+        //Thread.currentThread().setContextClassLoader(old);
     }
 }
