@@ -9,16 +9,16 @@ import org.mvel2.MVEL;
 
 public class TestA {
 
-    private static transient Serializable asdfe_mvel = MVEL.compileExpression("\"asdf\"+a");
+    private static transient Serializable asdfe_mvel = MVEL.compileExpression("Math.abs(a)");
 
     private String a;
-    public String getA() {
-        return new Random().nextDouble()+"";
+    public Long getA() {
+        return new Random().nextLong();
     }
 
 
-    public String getAsdfe() {
-        String result = (String) MVEL.executeExpression(asdfe_mvel, this);
+    public Long getAsdfe() {
+        Long result = (Long) MVEL.executeExpression(asdfe_mvel, this);
         return result;
     }
 

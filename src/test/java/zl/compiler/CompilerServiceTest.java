@@ -40,8 +40,8 @@ public class CompilerServiceTest {
         getAsdfe.invoke(newInstance);
         System.out.println("调用时间ms:" + (System.currentTimeMillis() - start));
 
-        apply(getAsdfe, newInstance);
-        //aop(loader1, getAsdfe, newInstance);
+        //apply(getAsdfe, newInstance);
+        aop(loader1, getAsdfe, newInstance);
     }
 
 
