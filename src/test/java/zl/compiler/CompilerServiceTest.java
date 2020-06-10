@@ -5,6 +5,7 @@ import org.junit.Test;
 import zl.compiler.hot.HotClassLoader;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -35,18 +36,28 @@ public class CompilerServiceTest {
         System.out.println("实例化时间ms:" + (System.currentTimeMillis() - start));
 
         start = System.currentTimeMillis();
-        Method work1 = aClass1.getMethod("getAsdfe");
-        work1.invoke(newInstance);
+        Method getAsdfe = aClass1.getMethod("getAsdfe");
+        getAsdfe.invoke(newInstance);
         System.out.println("调用时间ms:" + (System.currentTimeMillis() - start));
 
-        //ClassLoader old = Thread.currentThread().getContextClassLoader();
-        //Thread.currentThread().setContextClassLoader(loader1);
+        apply(getAsdfe, newInstance);
+        //aop(loader1, getAsdfe, newInstance);
+    }
+
+
+    private void aop(ClassLoader loader1, Method work1, Object newInstance) throws InvocationTargetException, IllegalAccessException {
+        ClassLoader old = Thread.currentThread().getContextClassLoader();
+        Thread.currentThread().setContextClassLoader(loader1);
+        apply(work1, newInstance);
+        Thread.currentThread().setContextClassLoader(old);
+    }
+
+    private void apply(Method work1, Object newInstance) throws InvocationTargetException, IllegalAccessException {
         int count = 0;
-        start = System.currentTimeMillis();
+        long start = System.currentTimeMillis();
         while (count++ < 100000) {
             work1.invoke(newInstance);
         }
         System.out.println("调用时间ms:" + (System.currentTimeMillis() - start));
-        //Thread.currentThread().setContextClassLoader(old);
     }
 }
